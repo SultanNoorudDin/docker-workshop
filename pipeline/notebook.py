@@ -1,21 +1,7 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[17]:
-
 
 import pandas as pd
-
-
-# In[18]:
-
-
-prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
-url = f'{prefix}/yellow_tripdata_2021-01.csv.gz'
-url
-
-
-# In[19]:
+from sqlalchemy import create_engine
+from tqdm.auto import tqdm
 
 
 dtype = {
@@ -43,82 +29,43 @@ parse_dates = [
 ]
 
 
-# In[20]:
+def run():
+    pg_user = 'root'
+    pg_pass = 'root'
+    pg_host = 'localhost'
+    pg_db = 'ny_taxi'
+    pg_port = 5432
+
+    chunksize = 100000
+    year = 2021
+    month = 1
+    
+    target_table = 'yellow_taxi_data' 
+    prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
+    url = f'{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz'
+    url
+    engine = create_engine('postgresql+psycopg://root:root@localhost:5432/ny_taxi')
 
 
-df
+    df_iter = pd.read_csv(
+        prefix + 'yellow_tripdata_2021-01.csv.gz',
+        dtype=dtype,
+        parse_dates=parse_dates,
+        iterator=True,
+        chunksize=100000
+    )
+    first = True
+    
+    for df_chunk in tqdm(df_iter):
+        if first:
+            df_chunk.head(n=0).to_sql(
+                name=target_table, 
+                con=engine, 
+                if_exists='replace'
+            )
+            first = False
 
+        df_chunk.to_sql(name=target_table, con=engine, if_exists='append')
 
-# In[21]:
-
-
-df.head()
-
-
-# In[22]:
-
-
-len(df)
-
-
-# In[23]:
-
-
-get_ipython().system('uv add sqlalchemy "psycopg[binary,pool]"')
-
-
-# In[24]:
-
-
-from sqlalchemy import create_engine
-engine = create_engine('postgresql+psycopg://root:root@localhost:5432/ny_taxi')
-
-
-# In[25]:
-
-
-df.head(n=0).to_sql(name='yellow_taxi_data', con=engine, if_exists='replace')
-
-df_iter = pd.read_csv(
-    prefix + 'yellow_tripdata_2021-01.csv.gz',
-    dtype=dtype,
-    parse_dates=parse_dates,
-    iterator=True,
-    chunksize=100000
-)
-# In[30]:
-
-
-get_ipython().system('uv add tqdm')
-
-
-# In[31]:
-
-
-from tqdm.auto import tqdm
-
-
-# In[32]:
-
-
-for df_chunk in tqdm(df_iter):
-    df_chunk.to_sql(name='yellow_taxi_data', con=engine, if_exists='append')
-
-
-# In[29]:
-
-
-print(pd.io.sql.get_schema(df, name='yellow_taxi_data', con=engine))
-
-
-# In[31]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
+if __name__ == '__main__':
+    run()
